@@ -1,71 +1,85 @@
 const std = @import("std");
 
-const json = struct {
-    pub fn object(value_opt: ?std.json.Value) ?std.json.ObjectMap {
-        const value = value_opt orelse return null;
-        return switch (value) {
-            .Object => |obj| obj,
-            else => null,
-        };
-    }
+// Utility functions
+pub fn object(value_opt: ?std.json.Value) ?std.json.ObjectMap {
+    const value = value_opt orelse return null;
+    return switch (value) {
+        .Object => |obj| obj,
+        else => null,
+    };
+}
 
-    pub fn array(value_opt: ?std.json.Value) ?std.json.Array {
-        const value = value_opt orelse return null;
-        return switch (value) {
-            .Array => |arr| arr,
-            else => null,
-        };
-    }
+pub fn array(value_opt: ?std.json.Value) ?std.json.Array {
+    const value = value_opt orelse return null;
+    return switch (value) {
+        .Array => |arr| arr,
+        else => null,
+    };
+}
 
-    pub fn string(value_opt: ?std.json.Value) ?[]const u8 {
-        const value = value_opt orelse return null;
-        return switch (value) {
-            .String => |str| str,
-            else => null,
-        };
-    }
+pub fn string(value_opt: ?std.json.Value) ?[]const u8 {
+    const value = value_opt orelse return null;
+    return switch (value) {
+        .String => |str| str,
+        else => null,
+    };
+}
 
-    pub fn boolean(value_opt: ?std.json.Value) ?bool {
-        const value = value_opt orelse return null;
-        return switch (value) {
-            .Bool => |b| b,
-            else => null,
-        };
+pub fn string_list(alloc: std.mem.Allocator, array_opt: ?std.json.Value) ![][]const u8 {
+    const arr = array(array_opt) orelse return &[_][]const u8{};
+    var list = try std.ArrayList([]const u8).initCapacity(alloc, arr.items.len);
+    defer list.deinit();
+    for (arr.items) |value| {
+        list.appendAssumeCapacity(string(value) orelse return error.InvalidString);
     }
+    return list.toOwnedSlice();
+}
 
-    pub fn integer(value_opt: ?std.json.Value) ?i64 {
-        const value = value_opt orelse return null;
-        return switch (value) {
-            .Integer => |int| int,
-            else => null,
-        };
-    }
+pub fn boolean(value_opt: ?std.json.Value) ?bool {
+    const value = value_opt orelse return null;
+    return switch (value) {
+        .Bool => |b| b,
+        else => null,
+    };
+}
 
-    pub fn enum_from_value(comptime T: type, value_opt: ?std.json.Value) ?T {
-        const value = value_opt orelse return null;
-        return switch (value) {
-            .String => |str| std.meta.stringToEnum(T, str),
-            else => null,
-        };
-    }
+pub fn integer(value_opt: ?std.json.Value) ?i64 {
+    const value = value_opt orelse return null;
+    return switch (value) {
+        .Integer => |int| int,
+        else => null,
+    };
+}
 
-    pub fn pos_from_value(value_opt: ?std.json.Value) ?[2]i64 {
-        const value = array(value_opt) orelse return null;
-        return .{
-            integer(value[0]) orelse return null,
-            integer(value[1]) orelse return null,
-        };
-    }
+fn float(value_opt: ?std.json.Value) ?f64 {
+    const value = value_opt orelse return null;
+    return switch (value) {
+        .Float => |float| float,
+        else => null,
+    };
+}
 
-    pub fn posf_from_value(value_opt: ?std.json.Value) ?[2]i64 {
-        const value = array(value_opt) orelse return null;
-        return .{
-            float(value[0]) orelse return null,
-            float(value[1]) orelse return null,
-        };
-    }
-};
+pub fn enum_from_value(comptime T: type, value_opt: ?std.json.Value) ?T {
+    const value = value_opt orelse return null;
+    return switch (value) {
+        .String => |str| std.meta.stringToEnum(T, str),
+        else => null,
+    };
+}
 
+pub fn pos_from_value(value_opt: ?std.json.Value) ?[2]i64 {
+    const value = array(value_opt) orelse return null;
+    const x = integer(value.items[0]) orelse return null;
+    const y = integer(value.items[1]) orelse return null;
+    return [2]i64{ x, y };
+}
+
+pub fn posf_from_value(value_opt: ?std.json.Value) ?[2]f64 {
+    const value = array(value_opt) orelse return null;
+    const x = float(value.items[0]) orelse return null;
+    const y = float(value.items[1]) orelse return null;
+    return [2]f64{ x, y };
+}
 
 /// 1. LDtk Json root
 pub const Root = struct {
@@ -167,21 +181,23 @@ pub const LayerInstance = struct {
 
     pub fn fromJSON(alloc: std.mem.Allocator, layer_value: std.json.Value) !LayerInstance {
         const layer_obj = object(layer_value) orelse return error.InvalidLayer;
-        const __type = enum_from_value(LayerType, layer.get("__type")) orelse return error.InvalidType;
+        const __type = enum_from_value(LayerType, layer_obj.get("__type")) orelse return error.InvalidType;
         const grid = grid: {
-            if (__type == .IntGrid and array(layer.get("intGridCsv"))) |intGridCsv| grid: {
-                const grid = std.ArrayList(i64).initCapacity(alloc, intGridCsv.items.len);
-                defer grid.deinit();
+            if (__type == .IntGrid) {
+                if (array(layer_obj.get("intGridCsv"))) |intGridCsv| {
+                    var grid_list = try std.ArrayList(i64).initCapacity(alloc, intGridCsv.items.len);
+                    defer grid_list.deinit();
 
-                for (grid) |int| {
-                    grid.appendAssumeCapacity(integer(int) orelse return error.InvalidInt);
+                    for (intGridCsv.items) |int| {
+                        grid_list.appendAssumeCapacity(integer(int) orelse return error.InvalidInt);
+                    }
+
+                    break :grid grid_list.toOwnedSlice();
                 }
-
-                break :grid grid.toOwnedSlice();
             }
             break :grid &[0]i64{};
         };
-        return LayerInstance {
+        return LayerInstance{
             .__cHei = integer(layer_obj.get("__cHei")) orelse return error.InvalidCHei,
             .__cWid = integer(layer_obj.get("__cWid")) orelse return error.InvalidCWid,
             .__gridSize = integer(layer_obj.get("__gridSize")) orelse return error.InvalidGridSize,
@@ -190,13 +206,14 @@ pub const LayerInstance = struct {
             .__pxTotalOffsetX = integer(layer_obj.get("__pxTotalOffsetX")) orelse return error.InvalidTotalOffsetX,
             .__pxTotalOffsetY = integer(layer_obj.get("__pxTotalOffsetY")) orelse return error.InvalidTotalOffsetY,
             .__tilesetDefUid = integer(layer_obj.get("__tilesetDefUid")) orelse return error.InvalidTilesetDefUid,
-            .__tilesetRelPath = integer(layer_obj.get("__tilesetRelPath")) orelse return error.InvalidTilesetRelPath,
+            .__tilesetRelPath = string(layer_obj.get("__tilesetRelPath")) orelse return error.InvalidTilesetRelPath,
             .__type = __type,
-            .autoLayerTiles = try TileInstance.fromJSON(alloc, layer_obj.get("autoLayerTiles")),
-            .entityInstances = try EntityInstance.fromJSON(alloc, layer_obj.get("entityInstances")),
-            .gridTiles = try TileInstance.fromJSON(alloc, layer_obj.get("gridTiles")),
+            .autoLayerTiles = try TileInstance.fromJSONMany(alloc, layer_obj.get("autoLayerTiles")),
+            .entityInstances = try EntityInstance.fromJSONMany(alloc, layer_obj.get("entityInstances")),
+            .gridTiles = try TileInstance.fromJSONMany(alloc, layer_obj.get("gridTiles")),
             .iid = string(layer_obj.get("iid")) orelse return error.InvalidIID,
             .intGridCsv = grid,
+            .layerDefUid = integer(layer_obj.get("layerDefUid")) orelse return error.InvalidLayerDefUid,
             .levelId = integer(layer_obj.get("levelId")) orelse return error.InvalidLevelId,
             .overrideTilesetUid = integer(layer_obj.get("overrideTilesetUid")) orelse return error.InvalidOverrideTilesetUid,
             .pxOffsetX = integer(layer_obj.get("pxOffsetX")) orelse return error.InvalidPxOffsetX,
@@ -205,11 +222,12 @@ pub const LayerInstance = struct {
         };
     }
 
-    pub fn fromJSONMany(alloc: std.mem.Allocator, layers: std.json.Array) ![]LayerInstance {
+    pub fn fromJSONMany(alloc: std.mem.Allocator, layers_opt: ?std.json.Value) ![]LayerInstance {
+        const layers = array(layers_opt) orelse return &[_]LayerInstance{};
         var ldtk_layers = try std.ArrayList(LayerInstance).initCapacity(alloc, layers.items.len);
         defer ldtk_layers.deinit(); // levels will be returned using toOwnedSlice
         for (layers.items) |layer_value| {
-            ldtk_layers.appendAssumeCapacity(try fromJSON(layer_value));
+            ldtk_layers.appendAssumeCapacity(try fromJSON(alloc, layer_value));
         }
         return ldtk_layers.toOwnedSlice();
     }
@@ -235,7 +253,8 @@ const TileInstance = struct {
     /// The Tile ID in the corresponding tileset
     t: i64,
 
-    pub fn fromJSON(tile: std.json.Value) !TileInstance {
+    pub fn fromJSON(tile_opt: ?std.json.Value) !TileInstance {
+        const tile = object(tile_opt) orelse return error.InvalidTileInstance;
         const f = @intToEnum(FlipBits, integer(tile.get("f")) orelse return error.InvalidFlipBits);
         const px = pos_from_value(tile.get("px")) orelse return error.InvalidPx;
         const src = pos_from_value(tile.get("src")) orelse return error.InvalidSrc;
@@ -246,6 +265,16 @@ const TileInstance = struct {
             .src = src,
             .t = t,
         };
+    }
+
+    pub fn fromJSONMany(alloc: std.mem.Allocator, tiles_opt: ?std.json.Value) ![]TileInstance {
+        const tiles = array(tiles_opt) orelse return &[_]TileInstance{};
+        var ldtk_tiles = try std.ArrayList(TileInstance).initCapacity(alloc, tiles.items.len);
+        defer ldtk_tiles.deinit(); // levels will be returned using toOwnedSlice
+        for (tiles.items) |tile_value| {
+            ldtk_tiles.appendAssumeCapacity(try fromJSON(tile_value));
+        }
+        return ldtk_tiles.toOwnedSlice();
     }
 };
 
@@ -260,7 +289,7 @@ const FlipBits = enum(u4) {
 const EntityInstance = struct {
     __grid: [2]i64,
     __identifier: []const u8,
-    __pivot: [2]f32,
+    __pivot: [2]f64,
     __smartColor: []const u8,
     __tags: [][]const u8,
     __tile: ?TilesetRectangle,
@@ -271,19 +300,20 @@ const EntityInstance = struct {
     px: [2]i64,
     width: i64,
 
-    pub fn fromJSON(alloc: std.mem.Allocator, entity: std.json.Value) !TileInstance {
-        const __grid = pos_from_value(tile.get("__grid")) orelse return error.InvalidGrid;
-        const __identifier = string(tile.get("__identifier")) orelse return error.InvalidIdentifier;
-        const __pivot = posf_from_value(tile.get("__pivot")) orelse return error.InvalidPivot;
-        const __smartColor = string(tile.get("__smartColor")) orelse return error.InvalidSmartColor;
-        const __tags = pos_from_value(tile.get("__tags")) orelse return error.InvalidTags;
-        const __tile: ?[]TilesetRectangle = null; // TilesetRectangle.fromJSON();
-        const defUid = integer(tile.get("defUid")) orelse return error.InvalidDefUid;
-        const fieldInstances = try FieldInstance.fromJSON(alloc);
-        const height = integer(tile.get("height")) orelse return error.InvalidHeight;
-        const iid = string(tile.get("iid")) orelse return error.InvalidIid;
-        const px = pos_from_value(tile.get("px")) orelse return error.InvalidPx;
-        const width = integer(tile.get("width")) orelse return error.InvalidWidth;
+    pub fn fromJSON(alloc: std.mem.Allocator, entity_opt: std.json.Value) !EntityInstance {
+        const entity = object(entity_opt) orelse return error.InvalidEntityInstance;
+        const __grid = pos_from_value(entity.get("__grid")) orelse return error.InvalidGrid;
+        const __identifier = string(entity.get("__identifier")) orelse return error.InvalidIdentifier;
+        const __pivot = posf_from_value(entity.get("__pivot")) orelse return error.InvalidPivot;
+        const __smartColor = string(entity.get("__smartColor")) orelse return error.InvalidSmartColor;
+        const __tags = try string_list(alloc, entity.get("__tags"));
+        const __tile = try TilesetRectangle.fromJSON(entity.get("__tile"));
+        const defUid = integer(entity.get("defUid")) orelse return error.InvalidDefUid;
+        const fieldInstances = try FieldInstance.fromJSONMany(alloc, entity.get("fieldInstances"));
+        const height = integer(entity.get("height")) orelse return error.InvalidHeight;
+        const iid = string(entity.get("iid")) orelse return error.InvalidIid;
+        const px = pos_from_value(entity.get("px")) orelse return error.InvalidPx;
+        const width = integer(entity.get("width")) orelse return error.InvalidWidth;
 
         return EntityInstance{
             .__grid = __grid,
@@ -300,6 +330,16 @@ const EntityInstance = struct {
             .width = width,
         };
     }
+
+    pub fn fromJSONMany(alloc: std.mem.Allocator, entities_opt: ?std.json.Value) ![]EntityInstance {
+        const entities = array(entities_opt) orelse return &[_]EntityInstance{};
+        var ldtk_entities = try std.ArrayList(EntityInstance).initCapacity(alloc, entities.items.len);
+        defer ldtk_entities.deinit(); // levels will be returned using toOwnedSlice
+        for (entities.items) |entity_value| {
+            ldtk_entities.appendAssumeCapacity(try fromJSON(alloc, entity_value));
+        }
+        return ldtk_entities.toOwnedSlice();
+    }
 };
 
 /// 2.4. Field Instance
@@ -312,18 +352,32 @@ pub const FieldInstance = struct {
     __value: []const u8,
     defUid: i64,
 
-    pub fn fromJSON(alloc: std.mem.Allocator, field: std.json.Value) !FieldInstance {
+    pub fn fromJSON(field_value: ?std.json.Value) !?FieldInstance {
+        const field = object(field_value) orelse return error.InvalidFieldInstance;
         const __identifier = string(field.get("__identifier")) orelse return error.InvalidIdentifier;
-        const __tile = string(field.get("__tile")) orelse return error.InvalidTile;
+        const __tile = try TilesetRectangle.fromJSON(field.get("__tile"));
         const __type = string(field.get("__type")) orelse return error.InvalidType;
         const __value = string(field.get("__value")) orelse return error.InvalidValue;
         const defUid = integer(field.get("defUid")) orelse return error.InvalidIDefUid;
-        return FieldInstance {
+        return FieldInstance{
             .__identifier = __identifier,
             .__tile = __tile,
             .__type = __type,
             .__value = __value,
+            .defUid = defUid,
         };
+    }
+
+    pub fn fromJSONMany(alloc: std.mem.Allocator, fields_opt: ?std.json.Value) ![]FieldInstance {
+        const fields = array(fields_opt) orelse return &[_]FieldInstance{};
+        var ldtk_fields = try std.ArrayList(FieldInstance).initCapacity(alloc, fields.items.len);
+        defer ldtk_fields.deinit(); // levels will be returned using toOwnedSlice
+        for (fields.items) |field_value| {
+            if (try fromJSON(field_value)) |field| {
+                ldtk_fields.appendAssumeCapacity(field);
+            }
+        }
+        return ldtk_fields.toOwnedSlice();
     }
 };
 
@@ -418,12 +472,23 @@ const EntityDefinition = struct {
 const FieldDefinition = []const u8;
 
 /// 3.2.2. Tileset rectangle
-const TilesetRectangle = struct {
-    h: i64,
+pub const TilesetRectangle = struct {
     tilesetUid: i64,
     w: i64,
+    h: i64,
     x: i64,
     y: i64,
+
+    pub fn fromJSON(tile_rect_opt: ?std.json.Value) !TilesetRectangle {
+        const tile_rect = object(tile_rect_opt) orelse return error.InvalidTileRect;
+        return TilesetRectangle{
+            .tilesetUid = integer(tile_rect.get("tilesetUid")) orelse return error.InvalidTilesetUid,
+            .w = integer(tile_rect.get("w")) orelse return error.InvalidW,
+            .h = integer(tile_rect.get("h")) orelse return error.InvalidH,
+            .x = integer(tile_rect.get("x")) orelse return error.InvalidX,
+            .y = integer(tile_rect.get("y")) orelse return error.InvalidY,
+        };
+    }
 };
 
 /// 3.3. Tileset definition

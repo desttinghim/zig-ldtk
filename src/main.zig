@@ -25,7 +25,7 @@ test "load default/empty ldtk file" {
     const ldtk_levels = try extract_levels(testing.allocator, levels);
     defer testing.allocator.free(ldtk_levels);
 
-    var ldtk_root = LDtk.Root {
+    var ldtk_root = LDtk.Root{
         .bgColor = string(root.get("bgColor")) orelse return error.InvalidBGColor,
         // .defs = ldtk_defs,
         .externalLevels = boolean(root.get("externalLevels")) orelse return error.InvalidExternalLevels,
@@ -76,6 +76,7 @@ pub fn extract_levels(alloc: std.mem.Allocator, levels: std.json.Array) ![]LDtk.
     defer ldtk_levels.deinit(); // levels will be returned using toOwnedSlice
     for (levels.items) |level_value| {
         const level_obj = object(level_value) orelse return error.InvalidLevel;
+        const layer_instances = if (level_obj.get("layerInstances")) |layerInstances| try LDtk.LayerInstance.fromJSONMany(alloc, layerInstances) else null;
         ldtk_levels.appendAssumeCapacity(.{
             .__bgColor = string(level_obj.get("__bgColor")),
             // TODO
@@ -88,8 +89,7 @@ pub fn extract_levels(alloc: std.mem.Allocator, levels: std.json.Array) ![]LDtk.
             .fieldInstances = &[_]LDtk.FieldInstance{},
             .identifier = string(level_obj.get("identifier")) orelse return error.InvalidIdentifier,
             .iid = string(level_obj.get("iid")) orelse return error.InvalidIID,
-            // TODO
-            .layerInstances = null,
+            .layerInstances = layer_instances,
             .pxHei = integer(level_obj.get("pxHei")) orelse return error.InvalidPxHei,
             .pxWid = integer(level_obj.get("pxWid")) orelse return error.InvalidPxWid,
             .uid = integer(level_obj.get("uid")) orelse return error.InvalidUID,
@@ -101,41 +101,41 @@ pub fn extract_levels(alloc: std.mem.Allocator, levels: std.json.Array) ![]LDtk.
     return ldtk_levels.toOwnedSlice();
 }
 
-pub fn extract_layers(alloc: std.mem.Allocator, layers: std.json.Array) ![]LDtk.LayerInstance {
-    var ldtk_layers = try std.ArrayList(LDtk.LayerInstance).initCapacity(alloc, layers.items.len);
-    defer ldtk_layers.deinit(); // levels will be returned using toOwnedSlice
-    for (layers.items) |layer_value| {
-        const layer_obj = object(layer_value) orelse return error.InvalidLayer;
-        const __type = enum_from_value(LDtk.LayerType, layer_obj.get("__type")) orelse return error.InvalidType;
-        const autoLayerTiles = if (__type == .AutoLayer) {} else null;
-        const entityInstances = if (__type == .Entities) {} else null;
-        const gridTiles = if (__type == .Tiles) {} else null;
-        const intGridCsv = if (__type == .IntGrid) {} else null;
-        ldtk_layers.appendAssumeCapacity(.{
-            .__cHei = integer(layer_obj.get("__cHei")) orelse return error.InvalidCHei,
-            .__cWid = integer(layer_obj.get("__cWid")) orelse return error.InvalidCWid,
-            .__gridSize = integer(layer_obj.get("__gridSize")) orelse return error.InvalidGridSize,
-            .__identifier = string(layer_obj.get("__identifier")) orelse return error.InvalidIdentifier,
-            .__opacity = float(layer_obj.get("__opacity")) orelse return error.InvalidOpacity,
-            .__pxTotalOffsetX = integer(layer_obj.get("__pxTotalOffsetX")) orelse return error.InvalidTotalOffsetX,
-            .__pxTotalOffsetY = integer(layer_obj.get("__pxTotalOffsetY")) orelse return error.InvalidTotalOffsetY,
-            .__tilesetDefUid = integer(layer_obj.get("__tilesetDefUid")) orelse return error.InvalidTilesetDefUid,
-            .__tilesetRelPath = integer(layer_obj.get("__tilesetRelPath")) orelse return error.InvalidTilesetRelPath,
-            .__type = __type,
-            .autoLayerTiles = autoLayerTiles,
-            .entityInstances = entityInstances,
-            .gridTiles = gridTiles,
-            .iid = string(layer_obj.get("iid")) orelse return error.InvalidIID,
-            .intGridCsv = integer(layer_obj.get("intGridCsv")) orelse return error.InvalidGridCsv,
-            .levelId = integer(layer_obj.get("__cHei")) orelse return error.InvalidCHei,
-            .overrideTilesetUid = integer(layer_obj.get("__cHei")) orelse return error.InvalidCHei,
-            .pxOffsetX = integer(layer_obj.get("__cHei")) orelse return error.InvalidCHei,
-            .pxOffsetY = integer(layer_obj.get("__cHei")) orelse return error.InvalidCHei,
-            .visible = integer(layer_obj.get("__cHei")) orelse return error.InvalidCHei,
-        });
-    }
-    return ldtk_layers.toOwnedSlice();
-}
+// pub fn extract_layers(alloc: std.mem.Allocator, layers: std.json.Array) ![]LDtk.LayerInstance {
+//     var ldtk_layers = try std.ArrayList(LDtk.LayerInstance).initCapacity(alloc, layers.items.len);
+//     defer ldtk_layers.deinit(); // levels will be returned using toOwnedSlice
+//     for (layers.items) |layer_value| {
+//         const layer_obj = object(layer_value) orelse return error.InvalidLayer;
+//         const __type = enum_from_value(LDtk.LayerType, layer_obj.get("__type")) orelse return error.InvalidType;
+//         const autoLayerTiles = if (__type == .AutoLayer) {} else null;
+//         const entityInstances = if (__type == .Entities) {} else null;
+//         const gridTiles = if (__type == .Tiles) {} else null;
+//         const intGridCsv = if (__type == .IntGrid) {} else null;
+//         ldtk_layers.appendAssumeCapacity(.{
+//             .__cHei = integer(layer_obj.get("__cHei")) orelse return error.InvalidCHei,
+//             .__cWid = integer(layer_obj.get("__cWid")) orelse return error.InvalidCWid,
+//             .__gridSize = integer(layer_obj.get("__gridSize")) orelse return error.InvalidGridSize,
+//             .__identifier = string(layer_obj.get("__identifier")) orelse return error.InvalidIdentifier,
+//             .__opacity = float(layer_obj.get("__opacity")) orelse return error.InvalidOpacity,
+//             .__pxTotalOffsetX = integer(layer_obj.get("__pxTotalOffsetX")) orelse return error.InvalidTotalOffsetX,
+//             .__pxTotalOffsetY = integer(layer_obj.get("__pxTotalOffsetY")) orelse return error.InvalidTotalOffsetY,
+//             .__tilesetDefUid = integer(layer_obj.get("__tilesetDefUid")) orelse return error.InvalidTilesetDefUid,
+//             .__tilesetRelPath = integer(layer_obj.get("__tilesetRelPath")) orelse return error.InvalidTilesetRelPath,
+//             .__type = __type,
+//             .autoLayerTiles = autoLayerTiles,
+//             .entityInstances = entityInstances,
+//             .gridTiles = gridTiles,
+//             .iid = string(layer_obj.get("iid")) orelse return error.InvalidIID,
+//             .intGridCsv = integer(layer_obj.get("intGridCsv")) orelse return error.InvalidGridCsv,
+//             .levelId = integer(layer_obj.get("__cHei")) orelse return error.InvalidCHei,
+//             .overrideTilesetUid = integer(layer_obj.get("__cHei")) orelse return error.InvalidCHei,
+//             .pxOffsetX = integer(layer_obj.get("__cHei")) orelse return error.InvalidCHei,
+//             .pxOffsetY = integer(layer_obj.get("__cHei")) orelse return error.InvalidCHei,
+//             .visible = integer(layer_obj.get("__cHei")) orelse return error.InvalidCHei,
+//         });
+//     }
+//     return ldtk_layers.toOwnedSlice();
+// }
 
 fn object(value_opt: ?std.json.Value) ?std.json.ObjectMap {
     const value = value_opt orelse return null;
