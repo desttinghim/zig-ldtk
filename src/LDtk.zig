@@ -416,7 +416,7 @@ pub const FieldInstance = struct {
     // TODO: type and value have many possible values and are not always strings.
     // Figure out if we can use JSON.parse for this
     __type: []const u8,
-    __value: []const u8,
+    __value: std.json.Value,
     defUid: i64,
 
     pub fn fromJSON(field_value: ?std.json.Value) !?FieldInstance {
@@ -424,7 +424,7 @@ pub const FieldInstance = struct {
         const __identifier = string(field.get("__identifier")) orelse return error.InvalidIdentifier;
         const __tile = try TilesetRectangle.fromJSON(field.get("__tile"));
         const __type = string(field.get("__type")) orelse return error.InvalidType;
-        const __value = string(field.get("__value")) orelse return error.InvalidValue;
+        const __value = field.get("__value") orelse return error.InvalidValue;
         const defUid = integer(field.get("defUid")) orelse return error.InvalidIDefUid;
         return FieldInstance{
             .__identifier = __identifier,
