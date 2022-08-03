@@ -369,7 +369,7 @@ const EntityInstance = struct {
         const __pivot = posf_from_value(entity.get("__pivot")) orelse return error.InvalidPivot;
         const __smartColor = string(entity.get("__smartColor")) orelse return error.InvalidSmartColor;
         const __tags = try string_list(alloc, entity.get("__tags"));
-        const __tile = if (entity.get("__tile")) |__tile| try TilesetRectangle.fromJSON(__tile) else null;
+        const __tile = try TilesetRectangle.fromJSON(entity.get("__tile"));
         const defUid = integer(entity.get("defUid")) orelse return error.InvalidDefUid;
         const fieldInstances = try FieldInstance.fromJSONMany(alloc, entity.get("fieldInstances"));
         const height = integer(entity.get("height")) orelse return error.InvalidHeight;
@@ -422,7 +422,7 @@ pub const FieldInstance = struct {
     pub fn fromJSON(field_value: ?std.json.Value) !?FieldInstance {
         const field = object(field_value) orelse return error.InvalidFieldInstance;
         const __identifier = string(field.get("__identifier")) orelse return error.InvalidIdentifier;
-        const __tile = if (field.get("__tile")) |__tile| try TilesetRectangle.fromJSON(__tile) else null;
+        const __tile = try TilesetRectangle.fromJSON(field.get("__tile"));
         const __type = string(field.get("__type")) orelse return error.InvalidType;
         const __value = string(field.get("__value")) orelse return error.InvalidValue;
         const defUid = integer(field.get("defUid")) orelse return error.InvalidIDefUid;
@@ -552,8 +552,8 @@ pub const TilesetRectangle = struct {
     x: i64,
     y: i64,
 
-    pub fn fromJSON(tile_rect_opt: ?std.json.Value) !TilesetRectangle {
-        const tile_rect = object(tile_rect_opt) orelse return error.InvalidTileRect;
+    pub fn fromJSON(tile_rect_opt: ?std.json.Value) !?TilesetRectangle {
+        const tile_rect = object(tile_rect_opt) orelse return null;
         return TilesetRectangle{
             .tilesetUid = integer(tile_rect.get("tilesetUid")) orelse return error.InvalidTilesetUid,
             .w = integer(tile_rect.get("w")) orelse return error.InvalidW,
