@@ -103,7 +103,10 @@ const LayerInstance = struct {
 };
 
 const __Type = struct {
-    IntGrid, Entities, Tiles, AutoLayer,
+    IntGrid,
+    Entities,
+    Tiles,
+    AutoLayer,
 };
 
 /// 2.2. Tile instance
@@ -138,9 +141,38 @@ const EntityInstance = struct {
 };
 
 /// 2.4. Field Instance
-const FieldInstance = struct {};
+const FieldInstance = struct {
+    __identifier: []const u8,
+    __tile: ?TilesetRectangle,
+    // TODO: type and value have many possible values and are not always strings.
+    // Figure out if we can use JSON.parse for this
+    __type: FieldType,
+    __value: anytype,
+    defUid: u64,
+};
+
+const FieldType = union(enum) {
+    Int,
+    Float,
+    String,
+    Enum: []const u8,
+    Bool,
+};
+
 /// 2.4.2 Field instance entity reference
+const FieldInstanceRef = struct {
+    entityIid: []const u8,
+    layerIid: []const u8,
+    levelIid: []const u8,
+    worldIid: []const u8,
+};
+
 /// 2.4.3 Field instance grid point
+const FiledInstanceGridPoint = struct {
+    cx: i64,
+    cy: i64,
+};
+
 /// 3. Definitions
 const Defs = struct {
     layers: []Layer,
