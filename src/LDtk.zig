@@ -98,7 +98,7 @@ pub const WorldLayout = enum {
 
 /// 2. Level
 pub const Level = struct {
-    __bgColor: ?[]const u8,
+    __bgColor: []const u8,
     __bgPos: ?struct {
         cropRect: [4]f64,
         scale: [2]f64,
@@ -122,7 +122,7 @@ pub const Level = struct {
         const level_obj = object(level_opt) orelse return error.InvalidLevel;
         const layer_instances = if (level_obj.get("layerInstances")) |layerInstances| try LayerInstance.fromJSONMany(alloc, layerInstances) else null;
         return Level{
-            .__bgColor = string(level_obj.get("__bgColor")),
+            .__bgColor = string(level_obj.get("__bgColor")) orelse return error.Invalid__bgColor,
             // TODO
             .__bgPos = null,
             // TODO
