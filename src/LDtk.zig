@@ -669,6 +669,8 @@ fn float(value_opt: ?std.json.Value) ?f64 {
     const value = value_opt orelse return null;
     return switch (value) {
         .Float => |float| float,
+        // Integers are valid floats
+        .Integer => |int| @intToFloat(f64, int),
         else => null,
     };
 }
