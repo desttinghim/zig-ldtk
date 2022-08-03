@@ -1,57 +1,50 @@
 const std = @import("std");
 
-pub fn parse(allocator: std.mem.Allocator, json_string: []const u8) !Root {
-    @setEvalBranchQuota(10_0000);
-    var tokens = std.json.TokenStream.init(json_string);
-    const root = try std.json.parse(Root, &tokens, .{ .allocator = allocator });
-    return root;
-}
+// pub fn parse(parser: *std.json.Parser, json_string: []const u8) !std.json.Value {
+//     const value_tree = try parser.parse(json_string);
+//     value_tree.root.dump();
 
-pub fn parseFree(allocator: std.mem.Allocator, root: Root) void {
-    std.json.parseFree(Root, root, .{ .allocator = allocator });
-}
+//     const root_obj = switch (value_tree.root) {
+//         .Object => |obj| obj,
+//         else => return error.InvalidRoot,
+//     };
+//     _ = root_obj;
+//     // const root = Root {
+//     //     name: root_obj.get("name") orelse error.InvalidRoot,
+//     //     version: root_obj.get("jsonVersion") orelse error.InvalidRoot,
+//     //     defaultPivotX: root_obj.get("defaultPivotX") orelse error.InvalidRoot,
+//     //     defaultPivotY: root_obj.get("defaultPivotY") orelse error.InvalidRoot,
+//     //     defaultGridSize: root_obj.get("defaultGridSize") orelse error.InvalidRoot,
+//     //     name: root_obj.get("name") orelse error.InvalidRoot,
+//     // };
+
+//     return Root{};
+// }
 
 /// 1. LDtk Json root
-const Root = struct {
-    __header__: __Header__,
-
-    name: []const u8,
-    jsonVersion: u64,
-    defaultPivotX: f64,
-    defaultPivotY: f64,
-    defaultGridSize: u64,
+pub const Root = struct {
     bgColor: []const u8,
-    nextUid: u64,
-
-    defs: Definitions,
-
+    defs: ?Definitions = null,
+    externalLevels: bool,
+    jsonVersion: []const u8,
     levels: []Level,
-
-    worldGridHeight: ?u64 = null,
-    worldGridWidth: ?u64 = null,
+    worldGridHeight: ?i64 = null,
+    worldGridWidth: ?i64 = null,
     worldLayout: ?WorldLayout = null,
-    worlds: []World,
-};
-
-const __Header__ = struct {
-    fileType: []const u8,
-    app: []const u8,
-    appAuthor: []const u8,
-    appVersion: []const u8,
-    url: []const u8,
+    worlds: ?[]World = null,
 };
 
 /// 1.1. World
-const World = struct {
+pub const World = struct {
     identifier: []const u8,
     iid: []const u8,
     levels: []Level,
-    worldGridHeight: u64,
-    worldGridWidth: u64,
+    worldGridHeight: i64,
+    worldGridWidth: i64,
     worldLayout: WorldLayout,
 };
 
-const WorldLayout = enum {
+pub const WorldLayout = enum {
     Free,
     GridVania,
     LinearHorizontal,
@@ -59,59 +52,61 @@ const WorldLayout = enum {
 };
 
 /// 2. Level
-const Level = struct {
-    __bgColor: []const u8,
+pub const Level = struct {
+    __bgColor: ?[]const u8,
     __bgPos: ?struct {
         cropRect: [4]f64,
         scale: [2]f64,
         topLeftPx: [2]i64,
     },
-    __neighbours: []struct {
-        dir: []const u8,
-        levelIid: []const u8,
-        levelUid: ?u64 = null,
-    },
+    __neighbours: []Neighbour,
     bgRelPath: ?[]const u8,
     externalRelPath: ?[]const u8,
     fieldInstances: []FieldInstance,
     identifier: []const u8,
     iid: []const u8,
     layerInstances: ?[]LayerInstance,
-    pxHei: u64,
-    pxWid: u64,
-    uid: u64,
+    pxHei: i64,
+    pxWid: i64,
+    uid: i64,
     worldDepth: i64,
     worldX: i64,
     worldY: i64,
 };
 
+pub const Neighbour = struct {
+    dir: []const u8,
+    levelIid: []const u8,
+    levelUid: ?i64 = null,
+};
+
 /// 2.1. Layer instance
 const LayerInstance = struct {
-    __cHei: u64,
-    __cWid: u64,
-    __gridSize: u64,
+    __cHei: i64,
+    __cWid: i64,
+    __gridSize: i64,
     __identifier: []const u8,
     __opacity: f64,
     __pxTotalOffsetX: i64,
     __pxTotalOffsetY: i64,
-    __tilesetDefUid: ?u64,
+    __tilesetDefUid: ?i64,
     __tilesetRelPath: ?[]const u8,
     __type: []const u8,
     autoLayerTiles: []TileInstance,
     entityInstances: []EntityInstance,
     gridTiles: []TileInstance,
     iid: []const u8,
-    intGridCsv: []u64,
-    layerDefUid: u64,
-    levelId: u64,
-    overrideTilesetUid: ?u64,
-    pxOffsetX: u64,
-    pxOffsetY: u64,
+    intGridCsv: []i64,
+    layerDefUid: i64,
+    levelId: i64,
+    overrideTilesetUid: ?i64,
+    pxOffsetX: i64,
+    pxOffsetY: i64,
     visible: bool,
     /// WARNING: this deprecated value is no longer exported since version 1.0.0
     /// Replaced by: intGridCsv
     intGrid: ?[][]const u8 = null,
-    // seed: u64,
+    // seed: i64,
     // autoTiles: []AutoTile,
 };
 
@@ -127,7 +122,7 @@ const TileInstance = struct {
     f: FlipBits,
     px: [2]i64,
     src: [2]i64,
-    t: u64,
+    t: i64,
 };
 
 const FlipBits = enum(u4) {
@@ -145,23 +140,23 @@ const EntityInstance = struct {
     __smartColor: []const u8,
     __tags: [][]const u8,
     __tile: ?TilesetRectangle,
-    defUid: u64,
+    defUid: i64,
     fieldInstances: []FieldInstance,
-    height: u64,
+    height: i64,
     iid: []const u8,
     px: [2]i64,
-    width: u64,
+    width: i64,
 };
 
 /// 2.4. Field Instance
-const FieldInstance = struct {
+pub const FieldInstance = struct {
     __identifier: []const u8,
     __tile: ?TilesetRectangle,
     // TODO: type and value have many possible values and are not always strings.
     // Figure out if we can use JSON.parse for this
     __type: []const u8,
     __value: []const u8,
-    defUid: u64,
+    defUid: i64,
 };
 
 const FieldType = union(enum) {
@@ -209,11 +204,11 @@ const LayerDefinition = struct {
         Tiles,
         AutoLayer,
     },
-    autoSourceLayerDefUid: ?u64,
+    autoSourceLayerDefUid: ?i64,
     displayOpacity: f64,
-    gridSize: u64,
+    gridSize: i64,
     identifier: []const u8,
-    intGridValues: []struct { color: []const u8, identifier: ?[]const u8, value: u64 },
+    intGridValues: []struct { color: []const u8, identifier: ?[]const u8, value: i64 },
     parallaxFactorX: f64,
     parallaxFactorY: f64,
     parallaxScaling: bool,
@@ -222,12 +217,12 @@ const LayerDefinition = struct {
     /// Reference to the default Tileset UID used by this layer definition.
     /// WARNING: some layer instances might use a different tileset. So most of the time, you should probably use the __tilesetDefUid value found in layer instances.
     /// NOTE: since version 1.0.0, the old autoTilesetDefUid was removed and merged into this value.
-    tilesetDefUid: ?u64,
+    tilesetDefUid: ?i64,
     /// Unique Int identifier
-    uid: u64,
+    uid: i64,
     /// WARNING: this deprecated value will be removed completely on version 1.2.0+
     /// Replaced by: tilesetDefUid
-    autoTilesetDefUid: ?u64 = null,
+    autoTilesetDefUid: ?i64 = null,
 };
 
 /// 3.1.1. Auto-layer rule definition
@@ -236,19 +231,19 @@ const AutoLayerRuleDefinition = opaque {};
 /// 3.2. Entity definition
 const EntityDefinition = struct {
     color: []const u8,
-    height: u64,
+    height: i64,
     identifier: []const u8,
     nineSliceBorders: [4]i64,
     pivotX: f64,
     pivotY: f64,
     tileRect: TilesetRectangle,
     tileRenderMode: enum { Cover, FitInside, Repeat, Stretch, FullSizeCropped, FullSizeUncropped, NineSlice },
-    tilesetId: ?u64,
-    uid: u64,
-    width: u64,
+    tilesetId: ?i64,
+    uid: i64,
+    width: i64,
     /// WARNING: this deprecated value will be removed completely on version 1.2.0+
     /// Replaced by tileRect
-    tileId: ?u64 = null,
+    tileId: ?i64 = null,
 };
 
 /// 3.2.1. Field definition
@@ -256,52 +251,52 @@ const FieldDefinition = []const u8;
 
 /// 3.2.2. Tileset rectangle
 const TilesetRectangle = struct {
-    h: u64,
-    tilesetUid: u64,
-    w: u64,
+    h: i64,
+    tilesetUid: i64,
+    w: i64,
     x: i64,
     y: i64,
 };
 
 /// 3.3. Tileset definition
 const TilesetDefinition = struct {
-    __cHei: u64,
-    __cWid: u64,
+    __cHei: i64,
+    __cWid: i64,
     customData: []struct {
         data: []const u8,
-        tileId: u64,
+        tileId: i64,
     },
     embedAtlas: ?enum { LdtkIcons },
     enumTags: []struct {
         enumValueId: []const u8,
-        tileIds: []u64,
+        tileIds: []i64,
     },
     identifier: []const u8,
     padding: i64,
-    pxHei: u64,
-    pxWid: u64,
+    pxHei: i64,
+    pxWid: i64,
     relPath: ?[]const u8,
     spacing: i64,
     tags: [][]const u8,
-    tagsSourceEnumUid: ?u64,
-    tileGridSize: u64,
-    uid: u64,
+    tagsSourceEnumUid: ?i64,
+    tileGridSize: i64,
+    uid: i64,
 };
 
 /// 3.4. Enum definition
 const EnumDefinition = struct {
     externalRelPath: ?[]const u8,
-    iconTilesetUid: ?u64,
+    iconTilesetUid: ?i64,
     identifier: []const u8,
     tags: [][]const u8,
-    uid: u64,
+    uid: i64,
     values: []EnumValueDefinition,
 };
 
 /// 3.4.1. Enum value definition
 const EnumValueDefinition = struct {
     __tileSrcRect: ?[4]i64,
-    color: u64,
+    color: i64,
     id: []const u8,
-    tileId: ?u64,
+    tileId: ?i64,
 };
