@@ -146,8 +146,8 @@ const FieldInstance = struct {
     __tile: ?TilesetRectangle,
     // TODO: type and value have many possible values and are not always strings.
     // Figure out if we can use JSON.parse for this
-    __type: FieldType,
-    __value: anytype,
+    __type: []const u8,
+    __value: []const u8,
     defUid: u64,
 };
 
@@ -174,20 +174,122 @@ const FiledInstanceGridPoint = struct {
 };
 
 /// 3. Definitions
-const Defs = struct {
-    layers: []Layer,
-    entities: []Entity,
+/// Only 2 definitions you might need here are Tilesets and Enums
+const Definitions = struct {
+    entities: []EntityDefinition,
+
+    enums: []EnumDefinition,
+    /// Same as enums, excepts they have a relPath to point to an external source file
+    externalEnums: []EnumDefinition,
+    layers: []LayerDefinition,
+    /// All custom fields available to all levels
+    levelFields: []FieldDefinition,
+    /// All tilesets
     tilesets: []Tileset,
-    enums: []Enum,
-    externalEnums: []ExternalEnum,
 };
 
 /// 3.1. Layer definition
+const LayerDefinition = struct {
+    __type: enum {
+        IntGrid,
+        Entities,
+        Tiles,
+        AutoLayer,
+    },
+    autoSourceLayerDefUid: ?u64,
+    displayOpacity: f64,
+    gridSize: u64,
+    identifier: []const u8,
+    intGridValues: []struct { color: []const u8, identifier: ?[]const u8, value: u64 },
+    parallaxFactorX: f64,
+    parallaxFactorY: f64,
+    parallaxScaling: Bool,
+    pxOffsetX: i64,
+    pxOffsetY: i64,
+    /// Reference to the default Tileset UID used by this layer definition.
+    /// WARNING: some layer instances might use a different tileset. So most of the time, you should probably use the __tilesetDefUid value found in layer instances.
+    /// NOTE: since version 1.0.0, the old autoTilesetDefUid was removed and merged into this value.
+    tilesetDefUid: ?u64,
+    /// Unique Int identifier
+    uid: u64,
+    /// WARNING: this deprecated value will be removed completely on version 1.2.0+
+    /// Replaced by: tilesetDefUid
+    autoTilesetDefUid: ?u64 = null,
+};
+
 /// 3.1.1. Auto-layer rule definition
+const AutoLayerRuleDefinition = opaque {};
+
 /// 3.2. Entity definition
+const EntityDefinition = struct {
+    color: []const u8,
+    height: u64,
+    identifier: []const u8,
+    nineSliceBorders: [4]i64,
+    pivotX: f64,
+    pivotY: f64,
+    tileRect: TilesetRectangle,
+    tileRenderMode: enum { Cover, FitInside, Repeat, Stretch, FullSizeCropped, FullSizeUncropped, NineSlice },
+    tilesetId: ?u64,
+    uid: u64,
+    width: u64,
+    /// WARNING: this deprecated value will be removed completely on version 1.2.0+
+    /// Replaced by tileRect
+    tileId: ?u64 = null,
+};
+
 /// 3.2.1. Field definition
+const FieldDefinition = opaque {};
+
 /// 3.2.2. Tileset rectangle
+const TilesetRectangle = struct {
+    h: u64,
+    tilesetUid: u64,
+    w: u64,
+    h: u64,
+    x: i64,
+    y: i64,
+};
+
 /// 3.3. Tileset definition
+const TilesetDefinition = struct {
+    __cHei: u64,
+    __cWid: u64,
+    customData: []struct {
+        data: []const u8,
+        tileId: u64,
+    },
+    embedAtlas: ?enum { LdtkIcons },
+    enumTags: []struct {
+        enumValueId: []const u8,
+        tileIds: []u64,
+    },
+    identifier: []const u8,
+    padding: i64,
+    pxHei: u64,
+    pxWid: u64,
+    relPath: ?[]const u8,
+    spacing: i64,
+    tags: [][]const u8,
+    tagsSourceEnumUid: ?u64,
+    tileGridSize: u64,
+    uid: u64,
+};
+
 /// 3.4. Enum definition
+const EnumDefinition = struct {
+    externalRelPath: ?[]const u8,
+    iconTilesetUid: ?u64,
+    identifier: []const u8,
+    tags: [][]const u8,
+    uid: u64,
+    values: []EnumValueDefinition,
+};
+
 /// 3.4.1. Enum value definition
-const Enum = struct {};
+const EnumValueDefinition = struct {
+    __tileSrcRect: ?[4]i64,
+    color: u64,
+    id: []const u8,
+    tileId: ?u64,
+};
