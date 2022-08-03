@@ -40,9 +40,13 @@ test "load default/empty ldtk file" {
         defer testing.allocator.free(ldtk_worlds);
         ldtk_root.worlds = ldtk_worlds;
     }
-    _ = ldtk_root;
 
-    std.log.warn("\n{?}\n", .{ ldtk_root });
+    try testing.expectEqualStrings("1.1.3", ldtk_root.jsonVersion);
+    try testing.expectEqualStrings("#40465B", ldtk_root.bgColor);
+    try testing.expectEqual(@as(?i64, 256), ldtk_root.worldGridHeight);
+    try testing.expectEqual(@as(?i64, 256), ldtk_root.worldGridWidth);
+    try testing.expectEqual(@as(?LDtk.WorldLayout, LDtk.WorldLayout.Free), ldtk_root.worldLayout);
+    try testing.expect(!ldtk_root.externalLevels);
 }
 
 // pub fn extract_defs(alloc: std.mem.Allocator, defs_obj: std.json.Value) !LDtk.Definitions {
@@ -97,6 +101,42 @@ pub fn extract_levels(alloc: std.mem.Allocator, levels: std.json.Array) ![]LDtk.
     return ldtk_levels.toOwnedSlice();
 }
 
+pub fn extract_layers(alloc: std.mem.Allocator, layers: std.json.Array) ![]LDtk.LayerInstance {
+    var ldtk_layers = try std.ArrayList(LDtk.LayerInstance).initCapacity(alloc, layers.items.len);
+    defer ldtk_layers.deinit(); // levels will be returned using toOwnedSlice
+    for (layers.items) |layer_value| {
+        const layer_obj = object(layer_value) orelse return error.InvalidLayer;
+        const __type = enum_from_value(LDtk.LayerType, layer_obj.get("__type")) orelse return error.InvalidType;
+        const autoLayerTiles = if (__type == .AutoLayer) {} else null;
+        const entityInstances = if (__type == .Entities) {} else null;
+        const gridTiles = if (__type == .Tiles) {} else null;
+        const intGridCsv = if (__type == .IntGrid) {} else null;
+        ldtk_layers.appendAssumeCapacity(.{
+            .__cHei = integer(layer_obj.get("__cHei")) orelse return error.InvalidCHei,
+            .__cWid = integer(layer_obj.get("__cWid")) orelse return error.InvalidCWid,
+            .__gridSize = integer(layer_obj.get("__gridSize")) orelse return error.InvalidGridSize,
+            .__identifier = string(layer_obj.get("__identifier")) orelse return error.InvalidIdentifier,
+            .__opacity = float(layer_obj.get("__opacity")) orelse return error.InvalidOpacity,
+            .__pxTotalOffsetX = integer(layer_obj.get("__pxTotalOffsetX")) orelse return error.InvalidTotalOffsetX,
+            .__pxTotalOffsetY = integer(layer_obj.get("__pxTotalOffsetY")) orelse return error.InvalidTotalOffsetY,
+            .__tilesetDefUid = integer(layer_obj.get("__tilesetDefUid")) orelse return error.InvalidTilesetDefUid,
+            .__tilesetRelPath = integer(layer_obj.get("__tilesetRelPath")) orelse return error.InvalidTilesetRelPath,
+            .__type = __type,
+            .autoLayerTiles = autoLayerTiles,
+            .entityInstances = entityInstances,
+            .gridTiles = gridTiles,
+            .iid = string(layer_obj.get("iid")) orelse return error.InvalidIID,
+            .intGridCsv = integer(layer_obj.get("intGridCsv")) orelse return error.InvalidGridCsv,
+            .levelId = integer(layer_obj.get("__cHei")) orelse return error.InvalidCHei,
+            .overrideTilesetUid = integer(layer_obj.get("__cHei")) orelse return error.InvalidCHei,
+            .pxOffsetX = integer(layer_obj.get("__cHei")) orelse return error.InvalidCHei,
+            .pxOffsetY = integer(layer_obj.get("__cHei")) orelse return error.InvalidCHei,
+            .visible = integer(layer_obj.get("__cHei")) orelse return error.InvalidCHei,
+        });
+    }
+    return ldtk_layers.toOwnedSlice();
+}
+
 fn object(value_opt: ?std.json.Value) ?std.json.ObjectMap {
     const value = value_opt orelse return null;
     return switch (value) {
@@ -133,6 +173,14 @@ fn integer(value_opt: ?std.json.Value) ?i64 {
     const value = value_opt orelse return null;
     return switch (value) {
         .Integer => |int| int,
+        else => null,
+    };
+}
+
+fn float(value_opt: ?std.json.Value) ?f64 {
+    const value = value_opt orelse return null;
+    return switch (value) {
+        .Float => |float| float,
         else => null,
     };
 }
