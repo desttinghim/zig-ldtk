@@ -1,5 +1,15 @@
 const std = @import("std");
 
+pub fn parse(alloc: std.mem.Allocator, ldtk_file: []const u8) !Root {
+    var parser = std.json.Parser.init(alloc, false);
+    defer parser.deinit();
+
+    var value_tree = try parser.parse(ldtk_file);
+    defer value_tree.deinit();
+
+    return Root.fromJSON(alloc, value_tree.root);
+}
+
 // Utility functions
 pub fn object(value_opt: ?std.json.Value) ?std.json.ObjectMap {
     const value = value_opt orelse return null;
@@ -92,6 +102,25 @@ pub const Root = struct {
     worldGridWidth: ?i64 = null,
     worldLayout: ?WorldLayout = null,
     worlds: ?[]World = null,
+
+    pub fn fromJSON(alloc: std.mem.Allocator, root_opt: ?std.json.Value) !Root {
+        const root = object(root_opt) orelse return error.InvalidRoot;
+        const ldtk_levels = try Level.fromJSONMany(alloc, root.get("levels"));
+        var ldtk_root = Root{
+            .bgColor = string(root.get("bgColor")) orelse return error.InvalidBGColor,
+            // .defs = ldtk_defs,
+            .externalLevels = boolean(root.get("externalLevels")) orelse return error.InvalidExternalLevels,
+            .jsonVersion = string(root.get("jsonVersion")) orelse return error.InvalidJsonVersion,
+            .levels = ldtk_levels,
+            .worldGridHeight = integer(root.get("worldGridHeight")) orelse return error.InvalidHeight,
+            .worldGridWidth = integer(root.get("worldGridWidth")) orelse return error.InvalidWidth,
+            .worldLayout = enum_from_value(WorldLayout, root.get("worldLayout")) orelse return error.InvalidWorldLayout,
+        };
+        if (array(root.get("worlds"))) |worlds| {
+            ldtk_root.worlds = try World.fromJSONMany(alloc, worlds);
+        }
+        return ldtk_root;
+    }
 };
 
 /// 1.1. World
@@ -102,6 +131,28 @@ pub const World = struct {
     worldGridHeight: i64,
     worldGridWidth: i64,
     worldLayout: WorldLayout,
+
+    pub fn fromJSON(alloc: std.mem.Allocator, world_value: ?std.json.Value) !World {
+        const world_obj = object(world_value) orelse return error.InvalidWorld;
+        const levels_obj = world_obj.get("levels") orelse return error.InvalidWorldLevels;
+        const levels = try Level.fromJSONMany(alloc, levels_obj);
+        return World{
+            .identifier = string(world_obj.get("identifier")) orelse return error.InvalidIdentifier,
+            .iid = string(world_obj.get("iid")) orelse return error.InvalidIID,
+            .levels = levels,
+            .worldGridHeight = integer(world_obj.get("worldGridHeight")) orelse return error.InvalidWorldGridHeight,
+            .worldGridWidth = integer(world_obj.get("worldGridHeight")) orelse return error.InvalidWorldGridHeight,
+            .worldLayout = enum_from_value(WorldLayout, world_obj.get("worldLayout")) orelse return error.InvalidWorldLayout,
+        };
+    }
+
+    pub fn fromJSONMany(alloc: std.mem.Allocator, worlds: std.json.Array) ![]World {
+        var ldtk_worlds = try std.ArrayList(World).initCapacity(alloc, worlds.items.len);
+        for (worlds.items) |world_value| {
+            ldtk_worlds.appendAssumeCapacity(try fromJSON(alloc, world_value));
+        }
+        return ldtk_worlds.toOwnedSlice();
+    }
 };
 
 pub const WorldLayout = enum {
@@ -132,6 +183,42 @@ pub const Level = struct {
     worldDepth: i64,
     worldX: i64,
     worldY: i64,
+
+    pub fn fromJSON(alloc: std.mem.Allocator, level_opt: ?std.json.Value) !Level {
+        const level_obj = object(level_opt) orelse return error.InvalidLevel;
+        const layer_instances = if (level_obj.get("layerInstances")) |layerInstances| try LayerInstance.fromJSONMany(alloc, layerInstances) else null;
+        return Level{
+            .__bgColor = string(level_obj.get("__bgColor")),
+            // TODO
+            .__bgPos = null,
+            // TODO
+            .__neighbours = &[_]Neighbour{},
+            .bgRelPath = string(level_obj.get("bgRelPath")),
+            .externalRelPath = string(level_obj.get("externalRelPath")),
+            // TODO
+            .fieldInstances = &[_]FieldInstance{},
+            .identifier = string(level_obj.get("identifier")) orelse return error.InvalidIdentifier,
+            .iid = string(level_obj.get("iid")) orelse return error.InvalidIID,
+            .layerInstances = layer_instances,
+            .pxHei = integer(level_obj.get("pxHei")) orelse return error.InvalidPxHei,
+            .pxWid = integer(level_obj.get("pxWid")) orelse return error.InvalidPxWid,
+            .uid = integer(level_obj.get("uid")) orelse return error.InvalidUID,
+            .worldDepth = integer(level_obj.get("worldDepth")) orelse return error.InvalidWorldDepth,
+            .worldX = integer(level_obj.get("worldX")) orelse return error.InvalidWorldX,
+            .worldY = integer(level_obj.get("worldY")) orelse return error.InvalidWorldY,
+        };
+    }
+
+
+    pub fn fromJSONMany(alloc: std.mem.Allocator, levels_opt: ?std.json.Value) ![]Level {
+        const levels = array(levels_opt) orelse return error.InvalidLevels;
+        var ldtk_levels = try std.ArrayList(Level).initCapacity(alloc, levels.items.len);
+        defer ldtk_levels.deinit(); // levels will be returned using toOwnedSlice
+        for (levels.items) |level_value| {
+            ldtk_levels.appendAssumeCapacity(try fromJSON(alloc, level_value));
+        }
+        return ldtk_levels.toOwnedSlice();
+    }
 };
 
 pub const Neighbour = struct {
