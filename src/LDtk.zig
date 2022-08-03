@@ -1,3 +1,16 @@
+const std = @import("std");
+
+pub fn parse(allocator: std.mem.Allocator, json_string: []const u8) !Root {
+    @setEvalBranchQuota(10_0000);
+    var tokens = std.json.TokenStream.init(json_string);
+    const root = try std.json.parse(Root, &tokens, .{ .allocator = allocator });
+    return root;
+}
+
+pub fn parseFree(allocator: std.mem.Allocator, root: Root) void {
+    std.json.parseFree(Root, root, .{ .allocator = allocator });
+}
+
 /// 1. LDtk Json root
 const Root = struct {
     __header__: __Header__,
@@ -10,7 +23,7 @@ const Root = struct {
     bgColor: []const u8,
     nextUid: u64,
 
-    defs: Defs,
+    defs: Definitions,
 
     levels: []Level,
 
@@ -97,12 +110,12 @@ const LayerInstance = struct {
     visible: bool,
     /// WARNING: this deprecated value is no longer exported since version 1.0.0
     /// Replaced by: intGridCsv
-    intGrid: ?[]IntGrid = null,
+    intGrid: ?[][]const u8 = null,
     // seed: u64,
     // autoTiles: []AutoTile,
 };
 
-const __Type = struct {
+const __Type = enum {
     IntGrid,
     Entities,
     Tiles,
@@ -185,7 +198,7 @@ const Definitions = struct {
     /// All custom fields available to all levels
     levelFields: []FieldDefinition,
     /// All tilesets
-    tilesets: []Tileset,
+    tilesets: []TilesetDefinition,
 };
 
 /// 3.1. Layer definition
@@ -203,7 +216,7 @@ const LayerDefinition = struct {
     intGridValues: []struct { color: []const u8, identifier: ?[]const u8, value: u64 },
     parallaxFactorX: f64,
     parallaxFactorY: f64,
-    parallaxScaling: Bool,
+    parallaxScaling: bool,
     pxOffsetX: i64,
     pxOffsetY: i64,
     /// Reference to the default Tileset UID used by this layer definition.
@@ -239,14 +252,13 @@ const EntityDefinition = struct {
 };
 
 /// 3.2.1. Field definition
-const FieldDefinition = opaque {};
+const FieldDefinition = []const u8;
 
 /// 3.2.2. Tileset rectangle
 const TilesetRectangle = struct {
     h: u64,
     tilesetUid: u64,
     w: u64,
-    h: u64,
     x: i64,
     y: i64,
 };
