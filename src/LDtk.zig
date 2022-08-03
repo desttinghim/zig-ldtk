@@ -10,87 +10,6 @@ pub fn parse(alloc: std.mem.Allocator, ldtk_file: []const u8) !Root {
     return Root.fromJSON(alloc, value_tree.root);
 }
 
-// Utility functions
-pub fn object(value_opt: ?std.json.Value) ?std.json.ObjectMap {
-    const value = value_opt orelse return null;
-    return switch (value) {
-        .Object => |obj| obj,
-        else => null,
-    };
-}
-
-pub fn array(value_opt: ?std.json.Value) ?std.json.Array {
-    const value = value_opt orelse return null;
-    return switch (value) {
-        .Array => |arr| arr,
-        else => null,
-    };
-}
-
-pub fn string(value_opt: ?std.json.Value) ?[]const u8 {
-    const value = value_opt orelse return null;
-    return switch (value) {
-        .String => |str| str,
-        else => null,
-    };
-}
-
-pub fn string_list(alloc: std.mem.Allocator, array_opt: ?std.json.Value) ![][]const u8 {
-    const arr = array(array_opt) orelse return &[_][]const u8{};
-    var list = try std.ArrayList([]const u8).initCapacity(alloc, arr.items.len);
-    defer list.deinit();
-    for (arr.items) |value| {
-        list.appendAssumeCapacity(string(value) orelse return error.InvalidString);
-    }
-    return list.toOwnedSlice();
-}
-
-pub fn boolean(value_opt: ?std.json.Value) ?bool {
-    const value = value_opt orelse return null;
-    return switch (value) {
-        .Bool => |b| b,
-        else => null,
-    };
-}
-
-pub fn integer(value_opt: ?std.json.Value) ?i64 {
-    const value = value_opt orelse return null;
-    return switch (value) {
-        .Integer => |int| int,
-        else => null,
-    };
-}
-
-fn float(value_opt: ?std.json.Value) ?f64 {
-    const value = value_opt orelse return null;
-    return switch (value) {
-        .Float => |float| float,
-        else => null,
-    };
-}
-
-pub fn enum_from_value(comptime T: type, value_opt: ?std.json.Value) ?T {
-    const value = value_opt orelse return null;
-    return switch (value) {
-        .String => |str| std.meta.stringToEnum(T, str),
-        else => null,
-    };
-}
-
-pub fn pos_from_value(value_opt: ?std.json.Value) ?[2]i64 {
-    const value = array(value_opt) orelse return null;
-    const x = integer(value.items[0]) orelse return null;
-    const y = integer(value.items[1]) orelse return null;
-    return [2]i64{ x, y };
-}
-
-pub fn posf_from_value(value_opt: ?std.json.Value) ?[2]f64 {
-    const value = array(value_opt) orelse return null;
-    const x = float(value.items[0]) orelse return null;
-    const y = float(value.items[1]) orelse return null;
-    return [2]f64{ x, y };
-}
-
 /// 1. LDtk Json root
 pub const Root = struct {
     bgColor: []const u8,
@@ -120,6 +39,16 @@ pub const Root = struct {
             ldtk_root.worlds = try World.fromJSONMany(alloc, worlds);
         }
         return ldtk_root;
+    }
+
+    pub fn deinit(root: Root, alloc: std.mem.Allocator) void {
+        if (root.defs) |defs| defs.deinit(alloc);
+        if (root.worlds) |worlds| {
+            for (worlds) |world| world.deinit(alloc);
+            alloc.free(worlds);
+        }
+        for (root.levels) |level| level.deinit(alloc);
+        alloc.free(root.levels);
     }
 };
 
@@ -152,6 +81,11 @@ pub const World = struct {
             ldtk_worlds.appendAssumeCapacity(try fromJSON(alloc, world_value));
         }
         return ldtk_worlds.toOwnedSlice();
+    }
+
+    pub fn deinit(world: World, alloc: std.mem.Allocator) void {
+        for (world.levels) |level| level.deinit(alloc);
+        alloc.free(world.levels);
     }
 };
 
@@ -218,6 +152,15 @@ pub const Level = struct {
             ldtk_levels.appendAssumeCapacity(try fromJSON(alloc, level_value));
         }
         return ldtk_levels.toOwnedSlice();
+    }
+
+    pub fn deinit(level: Level, alloc: std.mem.Allocator) void {
+        alloc.free(level.__neighbours);
+        alloc.free(level.fieldInstances);
+        if (level.layerInstances) |layerInstances| {
+            for (layerInstances) |layerInstance| layerInstance.deinit(alloc);
+            alloc.free(layerInstances);
+        }
     }
 };
 
@@ -317,6 +260,15 @@ pub const LayerInstance = struct {
             ldtk_layers.appendAssumeCapacity(try fromJSON(alloc, layer_value));
         }
         return ldtk_layers.toOwnedSlice();
+    }
+
+    pub fn deinit(layerInstance: LayerInstance, alloc: std.mem.Allocator) void {
+        alloc.free(layerInstance.autoLayerTiles);
+        alloc.free(layerInstance.gridTiles);
+        for (layerInstance.entityInstances) |entityInstance| {
+            entityInstance.deinit(alloc);
+        }
+        alloc.free(layerInstance.entityInstances);
     }
 };
 
@@ -427,6 +379,11 @@ const EntityInstance = struct {
         }
         return ldtk_entities.toOwnedSlice();
     }
+
+    pub fn deinit(entityInstance: EntityInstance, alloc: std.mem.Allocator) void {
+        alloc.free(entityInstance.fieldInstances);
+        alloc.free(entityInstance.__tags);
+    }
 };
 
 /// 2.4. Field Instance
@@ -503,6 +460,12 @@ const Definitions = struct {
     levelFields: []FieldDefinition,
     /// All tilesets
     tilesets: []TilesetDefinition,
+
+    pub fn deinit(defs: Definitions, alloc: std.mem.Allocator) void {
+        _ = defs;
+        _ = alloc;
+        // TODO
+    }
 };
 
 /// 3.1. Layer definition
@@ -620,3 +583,98 @@ const EnumValueDefinition = struct {
     id: []const u8,
     tileId: ?i64,
 };
+
+// Utility functions
+/// Takes std.json.Value and returns std.json.ObjectMap or null
+pub fn object(value_opt: ?std.json.Value) ?std.json.ObjectMap {
+    const value = value_opt orelse return null;
+    return switch (value) {
+        .Object => |obj| obj,
+        else => null,
+    };
+}
+
+/// Takes std.json.Value and returns std.json.Array or null
+pub fn array(value_opt: ?std.json.Value) ?std.json.Array {
+    const value = value_opt orelse return null;
+    return switch (value) {
+        .Array => |arr| arr,
+        else => null,
+    };
+}
+
+/// Takes std.json.Value and returns []const u8 or null
+pub fn string(value_opt: ?std.json.Value) ?[]const u8 {
+    const value = value_opt orelse return null;
+    return switch (value) {
+        .String => |str| str,
+        else => null,
+    };
+}
+
+/// Takes std.json.Value and returns an error, [][]const u8, or null
+pub fn string_list(alloc: std.mem.Allocator, array_opt: ?std.json.Value) ![][]const u8 {
+    const arr = array(array_opt) orelse return &[_][]const u8{};
+    var list = try std.ArrayList([]const u8).initCapacity(alloc, arr.items.len);
+    defer list.deinit();
+    for (arr.items) |value| {
+        list.appendAssumeCapacity(string(value) orelse return error.InvalidString);
+    }
+    return list.toOwnedSlice();
+}
+
+/// Takes std.json.Value and returns bool or null
+pub fn boolean(value_opt: ?std.json.Value) ?bool {
+    const value = value_opt orelse return null;
+    return switch (value) {
+        .Bool => |b| b,
+        else => null,
+    };
+}
+
+/// Takes std.json.Value and returns i64 or null
+pub fn integer(value_opt: ?std.json.Value) ?i64 {
+    const value = value_opt orelse return null;
+    return switch (value) {
+        .Integer => |int| int,
+        else => null,
+    };
+}
+
+/// Takes std.json.Value and returns f64 or null
+fn float(value_opt: ?std.json.Value) ?f64 {
+    const value = value_opt orelse return null;
+    return switch (value) {
+        .Float => |float| float,
+        else => null,
+    };
+}
+
+/// Takes an enum and std.json.Value.
+/// Return values:
+/// - If the Value is a String it will attempt to convert it into an enum
+///     - If the String is not in the enum, null is returned
+/// - If the Value is not a String, null is returned
+pub fn enum_from_value(comptime T: type, value_opt: ?std.json.Value) ?T {
+    const value = value_opt orelse return null;
+    return switch (value) {
+        .String => |str| std.meta.stringToEnum(T, str),
+        else => null,
+    };
+}
+
+/// Takes std.json.Value and returns [2]i64 or null
+pub fn pos_from_value(value_opt: ?std.json.Value) ?[2]i64 {
+    const value = array(value_opt) orelse return null;
+    const x = integer(value.items[0]) orelse return null;
+    const y = integer(value.items[1]) orelse return null;
+    return [2]i64{ x, y };
+}
+
+/// Takes std.json.Value and returns [2]f64 or null
+pub fn posf_from_value(value_opt: ?std.json.Value) ?[2]f64 {
+    const value = array(value_opt) orelse return null;
+    const x = float(value.items[0]) orelse return null;
+    const y = float(value.items[1]) orelse return null;
+    return [2]f64{ x, y };
+}

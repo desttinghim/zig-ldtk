@@ -6,6 +6,7 @@ test "load default/empty ldtk file" {
     const empty_ldtk = @embedFile("test.ldtk");
 
     const ldtk_root = try LDtk.parse(testing.allocator, empty_ldtk);
+    defer ldtk_root.deinit(testing.allocator);
 
     try testing.expectEqualStrings("1.1.3", ldtk_root.jsonVersion);
     try testing.expectEqualStrings("#40465B", ldtk_root.bgColor);
