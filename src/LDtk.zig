@@ -23,14 +23,24 @@
 
 const std = @import("std");
 
-pub fn parse(alloc: std.mem.Allocator, ldtk_file: []const u8) !Root {
-    var parser = std.json.Parser.init(alloc, false);
-    defer parser.deinit();
+alloc: std.mem.Allocator,
+root: Root,
+parser: std.json.Parser,
+value_tree: std.json.ValueTree,
 
-    var value_tree = try parser.parse(ldtk_file);
-    defer value_tree.deinit();
+pub fn parse(alloc: std.mem.Allocator, ldtk_file: []const u8) !@This() {
+    var this: @This() = undefined;
+    this.alloc = alloc;
+    this.parser = std.json.Parser.init(alloc, false);
+    this.value_tree = try this.parser.parse(ldtk_file);
+    this.root = try Root.fromJSON(alloc, this.value_tree.root);
+    return this;
+}
 
-    return Root.fromJSON(alloc, value_tree.root);
+pub fn deinit(this: *@This()) void {
+    this.root.deinit(this.alloc);
+    this.value_tree.deinit();
+    this.parser.deinit();
 }
 
 /// 1. LDtk Json root
