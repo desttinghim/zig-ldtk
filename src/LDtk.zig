@@ -231,7 +231,7 @@ pub const LayerInstance = struct {
     entityInstances: []EntityInstance,
     gridTiles: []TileInstance,
     iid: []const u8,
-    intGridCsv: []i64,
+    intGridCsv: []const i64,
     layerDefUid: i64,
     levelId: i64,
     overrideTilesetUid: ?i64,
