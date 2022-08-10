@@ -245,7 +245,7 @@ pub const LayerInstance = struct {
     pub fn fromJSON(alloc: std.mem.Allocator, layer_value: std.json.Value) !LayerInstance {
         const layer_obj = object(layer_value) orelse return error.InvalidLayer;
         const __type = enum_from_value(LayerType, layer_obj.get("__type")) orelse return error.InvalidType;
-        const grid = grid: {
+        var grid = grid: {
             if (__type == .IntGrid) {
                 if (array(layer_obj.get("intGridCsv"))) |intGridCsv| {
                     var grid_list = try std.ArrayList(i64).initCapacity(alloc, intGridCsv.items.len);
