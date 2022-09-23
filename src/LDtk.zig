@@ -302,6 +302,9 @@ pub const LayerInstance = struct {
             entityInstance.deinit(alloc);
         }
         alloc.free(layerInstance.entityInstances);
+        if (layerInstance.intGridCsv.len != 0) {
+            alloc.free(layerInstance.intGridCsv);
+        }
     }
 };
 
