@@ -31,7 +31,8 @@ value_tree: std.json.ValueTree,
 pub fn parse(alloc: std.mem.Allocator, ldtk_file: []const u8) !@This() {
     var this: @This() = undefined;
     this.alloc = alloc;
-    this.parser = std.json.Parser.init(alloc, false);
+    //this.parser = std.json.Parser.init(alloc, false);
+    this.parser = std.json.Parser.init(alloc, .alloc_if_needed);
     this.value_tree = try this.parser.parse(ldtk_file);
     this.root = try Root.fromJSON(alloc, this.value_tree.root);
     return this;
@@ -176,7 +177,6 @@ pub const Level = struct {
         };
     }
 
-
     pub fn fromJSONMany(alloc: std.mem.Allocator, levels_opt: ?std.json.Value) ![]Level {
         const levels = array(levels_opt) orelse return error.InvalidLevels;
         var ldtk_levels = try std.ArrayList(Level).initCapacity(alloc, levels.items.len);
@@ -275,7 +275,7 @@ pub const LayerInstance = struct {
             .entityInstances = try EntityInstance.fromJSONMany(alloc, layer_obj.get("entityInstances")),
             .gridTiles = try TileInstance.fromJSONMany(alloc, layer_obj.get("gridTiles")),
             .iid = string(layer_obj.get("iid")) orelse return error.InvalidIID,
-            .intGridCsv = grid,
+            .intGridCsv = try grid,
             .layerDefUid = integer(layer_obj.get("layerDefUid")) orelse return error.InvalidLayerDefUid,
             .levelId = integer(layer_obj.get("levelId")) orelse return error.InvalidLevelId,
             .overrideTilesetUid = integer(layer_obj.get("overrideTilesetUid")),
@@ -625,7 +625,7 @@ const EnumValueDefinition = struct {
 pub fn object(value_opt: ?std.json.Value) ?std.json.ObjectMap {
     const value = value_opt orelse return null;
     return switch (value) {
-        .Object => |obj| obj,
+        .object => |obj| obj,
         else => null,
     };
 }
@@ -634,7 +634,7 @@ pub fn object(value_opt: ?std.json.Value) ?std.json.ObjectMap {
 pub fn array(value_opt: ?std.json.Value) ?std.json.Array {
     const value = value_opt orelse return null;
     return switch (value) {
-        .Array => |arr| arr,
+        .array => |arr| arr,
         else => null,
     };
 }
@@ -643,7 +643,7 @@ pub fn array(value_opt: ?std.json.Value) ?std.json.Array {
 pub fn string(value_opt: ?std.json.Value) ?[]const u8 {
     const value = value_opt orelse return null;
     return switch (value) {
-        .String => |str| str,
+        .string => |str| str,
         else => null,
     };
 }
@@ -663,7 +663,7 @@ pub fn string_list(alloc: std.mem.Allocator, array_opt: ?std.json.Value) ![][]co
 pub fn boolean(value_opt: ?std.json.Value) ?bool {
     const value = value_opt orelse return null;
     return switch (value) {
-        .Bool => |b| b,
+        .bool => |b| b,
         else => null,
     };
 }
@@ -672,7 +672,7 @@ pub fn boolean(value_opt: ?std.json.Value) ?bool {
 pub fn integer(value_opt: ?std.json.Value) ?i64 {
     const value = value_opt orelse return null;
     return switch (value) {
-        .Integer => |int| int,
+        .integer => |int| int,
         else => null,
     };
 }
@@ -681,9 +681,9 @@ pub fn integer(value_opt: ?std.json.Value) ?i64 {
 fn float(value_opt: ?std.json.Value) ?f64 {
     const value = value_opt orelse return null;
     return switch (value) {
-        .Float => |float| float,
+        .float => |a_float| a_float,
         // Integers are valid floats
-        .Integer => |int| @intToFloat(f64, int),
+        .integer => |int| @intToFloat(f64, int),
         else => null,
     };
 }
@@ -696,7 +696,7 @@ fn float(value_opt: ?std.json.Value) ?f64 {
 pub fn enum_from_value(comptime T: type, value_opt: ?std.json.Value) ?T {
     const value = value_opt orelse return null;
     return switch (value) {
-        .String => |str| std.meta.stringToEnum(T, str),
+        .string => |str| std.meta.stringToEnum(T, str),
         else => null,
     };
 }

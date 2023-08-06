@@ -2,6 +2,8 @@
 
 This is a single file library for parsing LDtk JSON files. [Ldtk](https://ldtk.io/) is a level editor for 2D games that allows you to organize many levels in one large world.
 
+Built with zig 0.11.0
+
 ## Usage
 
 Copy `LDtk.zig` into your project, or add this repository as a git submodule.
